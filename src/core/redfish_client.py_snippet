@@ -1,0 +1,26 @@
+
+    def get_firmware_info(self) -> Dict[str, str]:
+        """
+        取得系統韌體版本 (BMC, BIOS, CPLD)
+        """
+        fw_info = {"BMC": "N/A", "BIOS": "N/A", "CPLD": "N/A"}
+        
+        # 1. 取得 BMC/BIOS (通常在 /UpdateService/FirmwareInventory)
+        # Redfish 標準路徑
+        coll = self._get("/UpdateService/FirmwareInventory")
+        if coll and "Members" in coll:
+            for member in coll["Members"]:
+                uri = member["@odata.id"].replace("/redfish/v1", "")
+                data = self._get(uri)
+                if data:
+                    name = data.get("Name", "").lower()
+                    ver = data.get("Version", "N/A")
+                    
+                    if "bmc" in name or "managers" in uri.lower():
+                        fw_info["BMC"] = ver
+                    elif "bios" in name or "bios" in uri.lower():
+                        fw_info["BIOS"] = ver
+                    elif "cpld" in name or "cpld" in uri.lower():
+                        fw_info["CPLD"] = ver
+
+        return fw_info

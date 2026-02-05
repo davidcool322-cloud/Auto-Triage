@@ -1,0 +1,108 @@
+commands:
+  # --- 系統資訊與資產 (Inventory) ---
+  - id: "GetSystemInfo"
+    name: "系統基本資訊"
+    description: "取得主機板型號、序號與 UUID。"
+    category: "Inventory"
+    icon: "🖥️"
+    args: ["no-redfish"]
+
+  - id: "GetFruInfo"
+    name: "FRU 資產詳情"
+    description: "讀取機殼、主板、背板的 FRU (Field Replaceable Unit) 資料。"
+    category: "Inventory"
+    icon: "🏷️"
+    args: []
+
+  - id: "GetBiosInfo"
+    name: "BIOS 詳細資訊"
+    description: "顯示 BIOS 版本、發布日期。"
+    category: "Inventory"
+    icon: "⚙️"
+    args: ["no-redfish"]
+
+  - id: "GetBmcInfo"
+    name: "BMC 網路與狀態"
+    description: "顯示 BMC 韌體版本、日期、BMC 晶片型號、 IP 與 MAC 位址。"
+    category: "Inventory"
+    icon: "🌐"
+    args: ["no-redfish"]
+
+  - id: "GetCpldInfo"
+    name: "CPLD 版本檢查"
+    description: "顯示所有 CPLD 的版本"
+    category: "Inventory"
+    icon: "📟"
+    args: ["no-redfish"]
+
+  - id: "GetDmiInfo"
+    name: "DMI 資訊"
+    description: "顯示 DMI 資訊"
+    category: "Inventory"
+    icon: "📝"
+    args: ["no-redfish"]
+
+  # --- 健康監控與日誌 (Health & Logs) ---
+  - id: "GetEventLog"
+    name: "系統事件日誌 (SEL)"
+    description: "抓取 IPMI SEL，用於分析硬體錯誤紀錄。"
+    category: "Health"
+    icon: "📋"
+    args: []
+
+  - id: "CheckSensorData"
+    name: "感測器讀值"
+    description: "讀取全系統溫度、電壓、電流與風扇轉速。"
+    category: "Health"
+    icon: "🌡️"
+    args: ["--showall"]
+
+  - id: "MemoryHealthCheck"
+    name: "記憶體健康檢查"
+    description: "檢查 DIMM 是否有 ECC Error 或被隔離 (Mapped out)。"
+    category: "Health"
+    icon: "🧠"
+    args: ["no-redfish"]
+
+  - id: "GetPsuInfo"
+    name: "電源供應器狀態"
+    description: "檢查 PSU 在位狀態、瓦數、輸入電壓與健康度。"
+    category: "Health"
+    icon: "🔌"
+    args: ["no-redfish"]
+
+  - id: "GetGpuInfo"
+    name: "GPU 狀態檢測"
+    description: "取得 GPU 型號、溫度與功耗資訊 (支援 NVIDIA)。"
+    category: "Health"
+    icon: "🎮"
+    args: []
+
+  - id: "GetStorageInfo"
+    name: "硬碟/儲存裝置資訊"
+    description: "整合 NVMe 與 SATA 硬碟資訊與健康狀態檢查。"
+    category: "Health"
+    icon: "💾"
+    args: []
+
+  # --- 維護與控制 (Maintenance) ---
+  - id: "GetFanMode"
+    name: "風扇模組狀態"
+    description: "查詢目前風扇轉速與模組狀態。"
+    category: "Control"
+    icon: "🌀"
+    args: ["no-redfish"]
+
+  - id: "GetPowerStatus"
+    name: "電源狀態"
+    description: "查詢系統目前的電源狀態 (On/Off/Reset)。"
+    category: "Control"
+    icon: "⚡"
+    args: ["no-redfish"]
+
+  - id: "GetBmcUserList"
+    name: "BMC 使用者列表"
+    description: "列出目前 BMC 內建立的所有帳號與權限。"
+    category: "Control"
+    icon: "👤"
+    args: ["no-redfish"]

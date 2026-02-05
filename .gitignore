@@ -1,0 +1,92 @@
+# Git 忽略清單 - Hyper-RMA
+# 依據安全性與 GitHub 上傳規範進行優化
+
+# 環境變數與敏感資訊
+.env
+.env.local
+.env.*.local
+*.private
+*.secret
+
+# Python 虛擬環境
+.venv/
+venv/
+ENV/
+env/
+Lib/
+site/
+
+# Python 快取與編譯檔案
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+node_modules/
+
+# 套件安裝與分配
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+
+# IDE 設定
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.history/
+
+# 測試與覆蓋率
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# 日誌與報表 (不包含資料夾結構)
+logs/
+*.log
+reports/**/*
+!reports/README.md
+!reports/.gitkeep
+
+# 韌體檔案 (BIOS/BMC bin 檔不應上傳)
+firmware/**/*.bin
+firmware/**/*.img
+firmware/**/*.rom
+firmware/**/*.zip
+!firmware/README.md
+
+# 資料庫
+*.db
+*.sqlite
+*.sqlite3
+
+# Streamlit
+.streamlit/secrets.toml
+.streamlit/static/
+
+# 系統檔案
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 暫存與備份
+*.tmp
+*.temp
+*.bak
+*.old
+*.save
+*.patch
+
+# SAA 工具備份 (如果有誤放)
+SAA/
+saa.exe
