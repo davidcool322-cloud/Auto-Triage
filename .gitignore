@@ -87,6 +87,7 @@ desktop.ini
 *.save
 *.patch
 
-# SAA 工具備份 (如果有誤放)
-SAA/
+# External Tools (Generic)
+tools/
 saa.exe
+IPMICFG.exe

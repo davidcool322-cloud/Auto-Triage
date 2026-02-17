@@ -17,7 +17,7 @@
 
 ## 下載韌體
 
-請前往 [Supermicro 官方網站](https://www.supermicro.com/support/resources/) 下載對應主機板型號的韌體。
+請前往 [硬體製造商官方網站] 下載對應主機板型號的韌體。
 
 ## 注意事項
 

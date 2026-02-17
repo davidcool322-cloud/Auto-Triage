@@ -20,7 +20,7 @@ def load_saa_manifest():
 
 def render_saa_workshop():
     bmc_ip, user_name, user_pass = get_bmc_credentials()
-    render_premium_header("SAA 指令工作坊", "探索與執行 SAA 指令集 (Expert Mode)")
+    render_premium_header("指令工作坊", "探索與執行 SAA 指令集 (Expert Mode)")
     
     st.markdown("""
     <style>
@@ -34,68 +34,204 @@ def render_saa_workshop():
         st.error("無法載入指令清單")
         return
 
-    st.markdown("### 📚 指令庫")
+    # --- Layout Round 13: Optimized Layout (Wider Header)
+    # Previous: [1.0, 0.7, 8.3]. New: [1.5, 1.0, 7.5]
+    c_title, c_btn, c_space = st.columns([1.5, 1.0, 7.5])
+    
+    with c_title:
+        st.markdown("### 📚 指令庫")
+    
+    # 2. Execute Button (Moved to Header)
+    run_clicked = False
+    with c_btn:
+        # Use primary button, closer to title
+        run_clicked = st.button("🚀 執行", type="primary", use_container_width=True, help="執行目前選擇的指令")
+
     
     # Checkbox for advanced mode
-    show_raw = st.toggle("顯示原始輸出 (Raw Debug)", value=False)
+    c_opts1, c_opts2 = st.columns(2)
+    show_raw = c_opts1.toggle("顯示原始輸出 (Raw Debug)", value=False)
+    force_ipmi_log = c_opts2.toggle("強制 IPMI 抓取日誌 (GetEventLog)", value=True, help="若關閉則嘗試使用 Redfish 抓取日誌")
     
-    # Optimized layout: Dropdown (4) | Search (1)
-    c_select, c_search = st.columns([4, 1])
-    
-    filtered_cmds = [c for c in commands] # Base list
-    
-    with c_search:
-        search = st.text_input("🔍 搜尋", placeholder="關鍵字...", label_visibility="collapsed")
-    
-    if search:
-        search_lower = search.lower()
-        filtered_cmds = [c for c in filtered_cmds if search_lower in c['name'].lower() or search_lower in c['id'].lower()]
-    
-    selected_cmd = None
-    with c_select:
-        if filtered_cmds:
-            cmd_map = {f"{c['icon']} {c['name']} ({c['id']})": c for c in filtered_cmds}
-            # Handle possible key error if selected index changes
-            selected_label = st.selectbox("選擇指令:", options=list(cmd_map.keys()), label_visibility="collapsed")
-            selected_cmd = cmd_map[selected_label]
-        else:
-            st.info("沒有符合的指令")
+    import subprocess
+    from core.saa_runner import get_tool_path # Import helper
 
+    selected_cmd = None
+    
+    # 1. Dropdown Selection (Full Width)
+    cmd_map = {f"{c['icon']} {c['name']} ({c['id']})": c for c in commands}
+    selected_label = st.selectbox("選擇指令:", options=list(cmd_map.keys()), label_visibility="collapsed", key="saa_cmd_select")
+    selected_cmd = cmd_map[selected_label]
+
+    # ... (GetEventLog Toggle Logic) ...
+    if selected_cmd and selected_cmd['id'] == "GetEventLog":
+        if force_ipmi_log:
+            if "no-redfish" not in selected_cmd.get('args', []):
+                 selected_cmd['args'] = ["no-redfish"]
+        else:
+            current_args = list(selected_cmd.get('args', []))
+            if "no-redfish" in current_args:
+                current_args.remove("no-redfish")
+            selected_cmd['args'] = current_args
+            
+    # --- 4. Input Fields for Arguments (Restored Round 12) ---
+    final_args = []
+    has_required_missing = False
+    
+    # Render inputs if args exist (and not just the hidden 'no-redfish')
+    visible_args = [a for a in selected_cmd.get('args', []) if a != "no-redfish"]
+    
+    if visible_args:
+        with st.container(border=True):
+            st.markdown("#### ⚙️ 參數設定")
+            cols = st.columns(len(visible_args))
+            for idx, arg_name in enumerate(visible_args):
+                val = cols[idx].text_input(f"{arg_name}", key=f"arg_{selected_cmd['id']}_{idx}")
+                if not val:
+                    has_required_missing = True
+                final_args.append(val)
+    
+    # If using no-redfish flag, append it back to final_args
+    if "no-redfish" in selected_cmd.get('args', []):
+        final_args.append("no-redfish")
+        
     st.divider()
 
     if selected_cmd:
-        st.markdown(f"#### {selected_cmd['icon']} {selected_cmd['name']}")
-        st.caption(selected_cmd['description'])
+        # ... (rest of logic)
         
-        if not bmc_ip:
-            st.warning("⚠️ 請先在側邊欄設定 BMC 連線資訊")
-            return
-            
-        st.info(f"🔗 使用連線: **{bmc_ip}** (User: {user_name})")
-        
-        # Cache for sub-functions
-        st.session_state['last_ip'] = bmc_ip
-        st.session_state['last_user'] = user_name
-        st.session_state['last_pass'] = user_pass
+        # Hybrid License Check Path Update
+        # ... inside the execution block ...
+        # (Need to update the IPMICFG path logic below)
 
-        if st.button(f"⌛ 執行 {selected_cmd['id']}", type="primary", use_container_width=True):
-             with st.status(f"🚀 正在執行 {selected_cmd['id']}...", expanded=True) as status:
-                if selected_cmd['id'] == "GetStorageInfo":
-                    status.write("🔍 正在收集 NVMe 指令資料...")
-                    res_nvme = run_saa(bmc_ip, user_name, user_pass, "GetNvmeInfo", [])
-                    status.write("🔍 正在收集 SATA 指令資料...")
-                    res_sata = run_saa(bmc_ip, user_name, user_pass, "GetSataInfo", ["no-redfish"])
-                    st.session_state["last_saa_result"] = {"type": "composite", "nvme": res_nvme, "sata": res_sata}
-                else:
-                    status.write(f"⚙️ 正在發送 {selected_cmd['id']} 指令至 BMC...")
-                    result = run_saa(bmc_ip, user_name, user_pass, selected_cmd['id'], selected_cmd.get('args', []))
-                    st.session_state["last_saa_result"] = result
+
+        # 5. Execution Logic (Triggered by Top Button)
+        if run_clicked:
+            # A. Check Connection
+            if not bmc_ip:
+                st.error("❌ 尚未設定 BMC 連線資訊，無法執行指令。")
+                return # Stop execution but inputs remain
+
+            # B. Check Required Inputs
+            if has_required_missing:
+                st.error("⚠️ 請填寫所有必要參數後再執行")
+                return
+
+            # C. Run Command
+            with st.status(f"🚀 正在執行 {selected_cmd['id']}...", expanded=True) as status:
+                try:
+                    if selected_cmd['id'] == "GetStorageInfo":
+                        status.write("🔍 正在收集 NVMe 指令資料...")
+                        res_nvme = run_saa(bmc_ip, user_name, user_pass, "GetNvmeInfo", [])
+                        status.write("🔍 正在收集 SATA 指令資料...")
+                        res_sata = run_saa(bmc_ip, user_name, user_pass, "GetSataInfo", ["no-redfish"])
+                        st.session_state["last_saa_result"] = {"type": "composite", "nvme": res_nvme, "sata": res_sata}
+                    else:
+                        status.write(f"⚙️ 正在發送 {selected_cmd['id']} 指令至 BMC...")
+                        
+                        is_modern = st.session_state.get("is_modern", True) 
+                        gen_code = st.session_state.get("target_generation", "Unknown")
+                        
+                        # Legacy Logic
+                        if not is_modern:
+                            if gen_code != "Unknown":
+                                if "no-redfish" not in final_args:
+                                     final_args.append("no-redfish")
+                                     st.toast(f"🐢 Legacy Generation ({gen_code}): Auto-switching to IPMI mode", icon="🐢")
+                        
+                        # Pre-Check Logic
+                        pre_check_ok = True
+                        
+                        # --- Hybrid License Check (Round 7) ---
+                        if selected_cmd['id'] == "QueryProductKeyStatus" or selected_cmd['id'] in ["MemoryHealthCheck", "GetDmiInfo"]:
+                             is_license_check = selected_cmd['id'] == "QueryProductKeyStatus"
+                             check_label = f"Pre-Check for {selected_cmd['id']}" if not is_license_check else "Query License Status"
+                             
+                             status.write(f"🔍 正在檢查授權狀態 ({check_label})...")
+                             
+                             # 1. Try SAA First (Redfish)
+                             res_lic = run_saa(bmc_ip, user_name, user_pass, "QueryProductKeyStatus", ["no-redfish"])
+                             
+                             saa_unknown = ("Unknown command" in res_lic.raw_output) or ("Exit Code: 6" in res_lic.error_message)
+                             
+                             # 2. Hybrid Fallback: If SAA fails (Legacy/Unsupported) -> Try IPMICFG
+                             if saa_unknown:
+                                 status.write("⚠️ SAA 不支援此平台授權查詢 (Legacy)，嘗試切換至 IPMICFG 工具...")
+                                 
+                                 # Define IPMICFG Path (Round 8: Centralized)
+                                 tool_path = get_tool_path("ipmicfg")
+                                 
+                                 if not tool_path or not tool_path.exists():
+                                     status.write(f"❌ 未偵測到 IPMICFG 工具")
+                                     if is_license_check:
+                                         st.warning("⚠️ 此舊世代平台需要 IPMICFG 工具來查詢授權。")
+                                         st.info(f"請確認工具位於專案根目錄下的 `tools/` 資料夾中")
+                                         pre_check_ok = False
+                                 else:
+                                     # Run IPMICFG -k
+                                     # Command: IPMICFG.exe -m <ip> -u <user> -p <pass> -k
+                                     try:
+                                         # Mask password in logs
+                                         cmd_ipmi = [str(tool_path), "-m", bmc_ip, "-u", user_name, "-p", user_pass, "-k"]
+                                         p = subprocess.run(cmd_ipmi, capture_output=True, text=True, encoding='utf-8', errors='replace')
+                                         
+                                         if "Activated" in p.stdout or "Active" in p.stdout:
+                                             status.write("✅ IPMI 授權檢查確認：已啟用 (Active)")
+                                             # Make a fake success result for downstream logic
+                                             res_lic.success = True
+                                             res_lic.raw_output = "Active (Verified via IPMICFG)"
+                                         else:
+                                             status.update(label="⚠️ IPMI 授權檢查未剛過", state="error")
+                                             st.error("❌ 此節點尚未啟用產品金鑰 (Not Activated - Verified via IPMICFG)")
+                                             if p.stdout: st.code(p.stdout)
+                                             pre_check_ok = False
+                                     except Exception as e_ipmi:
+                                         st.error(f"IPMICFG 執行失敗: {e_ipmi}")
+                                         pre_check_ok = False
+
+                             # 3. Process SAA/IPMI Result
+                             if pre_check_ok:
+                                 # If we got here, either SAA succeeded OR IPMI succeeded
+                                 # If SAA succeeded:
+                                 if not saa_unknown:
+                                     if (res_lic.success and ("Active" in res_lic.raw_output or "Activated" in res_lic.raw_output)):
+                                         status.write("✅ SAA 授權狀態確認：已啟用 (Active)")
+                                     else:
+                                         # SAA ran but returned inactive/failure
+                                         status.update(label="⚠️ 授權檢查未通過", state="error")
+                                         st.error("❌ 此節點尚未啟用產品金鑰 (Not Activated)")
+                                         st.code(res_lic.raw_output)
+                                         pre_check_ok = False
+                        
+                        if pre_check_ok:
+                            # If the user ONLY wanted to check status, we are done (conceptually), 
+                            # but the logic below runs the selected command. 
+                            # If selected_cmd is QueryProductKeyStatus, we just re-ran it or used cached result?
+                            # Actually, run_saa below will run it again. 
+                            # Optimization: If QueryProductKeyStatus was just run successfully via IPMI, don't run SAA again if we known it fails.
+                            
+                            if selected_cmd['id'] == "QueryProductKeyStatus" and saa_unknown:
+                                # We already did the work via IPMI
+                                st.session_state["last_saa_result"] = res_lic # Contains the fake success from IPMI
+                            else:
+                                result = run_saa(bmc_ip, user_name, user_pass, selected_cmd['id'], final_args)
+                                st.session_state["last_saa_result"] = result
+                        else:
+                            st.session_state["last_saa_result"] = None
+                    
+                    st.session_state["last_saa_cmd_id"] = selected_cmd['id']
+                    status.update(label=f"✅ {selected_cmd['id']} 執行完成", state="complete", expanded=False)
                 
-                st.session_state["last_saa_cmd_id"] = selected_cmd['id']
-                status.update(label=f"✅ {selected_cmd['id']} 執行完成", state="complete", expanded=False)
+                except Exception as e:
+                    st.error(f"執行發生未預期錯誤: {e}")
+                    status.update(label="❌ 執行失敗", state="error")
 
+        # 6. Display Result (From Session State)
         if "last_saa_result" in st.session_state and st.session_state.get("last_saa_cmd_id") == selected_cmd['id']:
             result = st.session_state["last_saa_result"]
+            
+            if result is None:
+                return
             
             if show_raw:
                 if isinstance(result, dict) and result.get("type") == "composite":
@@ -109,32 +245,43 @@ def render_saa_workshop():
                 st.markdown("### 📋 執行結果")
                 render_storage_analysis(result["nvme"], result["sata"])
             else:
-                if result.success:
-                    if not show_raw:
-                        st.success("✅ 指令執行成功")
-                        with st.expander("查看執行指令 (Command Line)"): st.code(result.command_str)
-                    
-                    st.markdown("### 📋 執行結果")
-                    if result.data:
-                        render_visualization(selected_cmd['id'], result.data)
-                    elif not show_raw:
-                        st.info("指令執行成功，但無結構化資料可顯示。")
-                        st.code(result.raw_output)
-                else:
-                    st.error(f"❌ 執行失敗: {result.error_message}")
-                    if not show_raw:
-                        with st.expander("Command Line"): st.code(result.command_str)
-                    
-                    st.markdown("### 📋 執行結果")
-                    if "Exit Code: 146" in result.error_message:
-                        st.warning("⚠️ 認證失敗，請檢查側邊欄連線資料。")
-                    with st.expander("原始輸出"): st.code(result.raw_output)
+                    if result.success:
+                        if not show_raw:
+                            st.success("✅ 指令執行成功")
+                            # Hide command line if it was an internal IPMI emulation? No, keeps simple.
+                            with st.expander("查看執行指令 (Command Line)"): st.code(result.command_str)
+                        
+                        st.markdown("### 📋 執行結果")
+                        if result.data or (selected_cmd['id'] == "QueryProductKeyStatus" and "IPMICFG" in result.raw_output):
+                            # Special case for IPMI emulated result which has no 'data' dict usually
+                            render_visualization(selected_cmd['id'], result.data if result.data else {"raw": result.raw_output})
+                        elif not show_raw:
+                            st.info("指令執行成功，但無結構化資料可顯示。")
+                            st.code(result.raw_output)
+                    else:
+                        is_priv_error = "Exit Code: 87" in result.error_message or "privileges are limited" in result.raw_output
+                        # Check SAA unknown again? No, we handled it.
+                        
+                        if is_priv_error:
+                            st.error("❌ BMC 帳號權限不足 (Exit Code: 87)")
+                            st.warning("⚠️ 請確認使用的 BMC 帳號 (如 ADMIN) 擁有 Administrator 群組權限。")
+                            st.info("提示：新世代主板 (H13/H14+) SAA 指令預設使用 Redfish 介面，需要較高的 Redfish 權限。")
+                        else:
+                            st.error(f"❌ 執行失敗: {result.error_message}")
+                        
+                        if not show_raw:
+                            with st.expander("Command Line"): st.code(result.command_str)
+                        
+                        st.markdown("### 📋 執行結果")
+                        if "Exit Code: 146" in result.error_message:
+                            st.warning("⚠️ 認證失敗，請檢查側邊欄連線資料。")
+                        with st.expander("原始輸出"): st.code(result.raw_output)
 
 def render_storage_analysis(res_nvme, res_sata):
     st.subheader("💾 硬碟與儲存裝置分析")
     
     # --- NVMe Section ---
-    st.markdown("#### NVMe SSD Status")
+    st.markdown("#### NVme SSD Status")
     if res_nvme.success and res_nvme.data:
         nvme_list = []
         data_list = res_nvme.data.get("data", [])
@@ -233,11 +380,10 @@ def render_visualization(cmd_id: str, data: dict):
                 st.json(root)
 
         elif cmd_id == "GetFruInfo":
-            # FRU 資訊解析強化
-            # 有些版本在 root 下直接有 fru_info，有些則在更深層
+            # Round 6: Format FRU to match DMI style
             fru_list = root.get("fru_info", [])
             
-            # 如果 fru_list 為空，嘗試搜尋所有 list 類型的欄位
+            # Fallback search for lists
             if not fru_list:
                 for val in root.values():
                     if isinstance(val, list) and len(val) > 0 and isinstance(val[0], dict):
@@ -245,41 +391,142 @@ def render_visualization(cmd_id: str, data: dict):
                         break
             
             if fru_list:
-                # 處理可能存在的嵌套 dict (將其串接為字串)
-                processed_fru = []
+                fru_rows = []
                 for item in fru_list:
-                    new_item = {}
+                    # Flattening logic
+                    flat = {}
                     for k, v in item.items():
                         if isinstance(v, dict):
-                            new_item[k] = str(v)
+                            for sub_k, sub_v in v.items():
+                                flat[f"{k}_{sub_k}"] = sub_v
                         else:
-                            new_item[k] = v
-                    processed_fru.append(new_item)
-                
-                df = pd.DataFrame(processed_fru)
-                df = df.dropna(axis=1, how='all')
-                st.dataframe(df, use_container_width=True, hide_index=True)
+                            flat[k] = v
+                    
+                    # Map to DMI-like columns
+                    # Board
+                    if "board_product_name" in flat or "board_model" in flat:
+                        fru_rows.append({
+                            "類別": "Baseboard",
+                            "製造商 (Manufacturer)": get_fuzzy_val(flat, ["board_manufacturer", "board_vendor"]),
+                            "產品名稱 (Product)": get_fuzzy_val(flat, ["board_product_name", "board_model"]),
+                            "序號 (Serial)": get_fuzzy_val(flat, ["board_serial_number", "board_serial"]),
+                            "版本 (Version)": get_fuzzy_val(flat, ["board_part_number", "board_part_num"]) # Use Part Num as closest proxy if Version missing
+                        })
+                    
+                    # Product/System
+                    if "product_name" in flat or "product_model" in flat:
+                        fru_rows.append({
+                            "類別": "System",
+                            "製造商 (Manufacturer)": get_fuzzy_val(flat, ["product_manufacturer", "product_vendor"]),
+                            "產品名稱 (Product)": get_fuzzy_val(flat, ["product_name", "product_model"]),
+                            "序號 (Serial)": get_fuzzy_val(flat, ["product_serial_number", "product_serial"]),
+                            "版本 (Version)": get_fuzzy_val(flat, ["product_version", "product_part_number"])
+                        })
+                    
+                    # Chassis
+                    if "chassis_type" in flat or "chassis_part_number" in flat:
+                        fru_rows.append({
+                            "類別": "Chassis",
+                            "製造商 (Manufacturer)": "N/A", # Chassis often misses manufacturer in FRU
+                            "產品名稱 (Product)": get_fuzzy_val(flat, ["chassis_type"]),
+                            "序號 (Serial)": get_fuzzy_val(flat, ["chassis_serial_number", "chassis_serial"]),
+                            "版本 (Version)": get_fuzzy_val(flat, ["chassis_part_number"])
+                        })
+
+                if fru_rows:
+                    st.dataframe(pd.DataFrame(fru_rows), use_container_width=True, hide_index=True)
+                else:
+                    # Fallback if manual parsing fails (unlikely structure)
+                    st.json(root)
             else:
                 st.info("無法解析 FRU 詳細列表，顯示原始資料：")
                 st.json(root)
+
+        elif cmd_id == "GetCpldInfo":
+            # Round 6: Format CPLD Info
+            # Expecting data structure: data[0]['fw_list'] -> list of dicts
+            fw_list = root.get("fw_list", [])
+            
+            if fw_list:
+                cpld_rows = []
+                for fw in fw_list:
+                    cpld_rows.append({
+                        "Device": fw.get("device", "Unknown"),
+                        "Type": fw.get("fw_type", "CPLD"),
+                        "Index": fw.get("index", "N/A"),
+                        "Version": fw.get("version", "N/A")
+                    })
+                st.dataframe(pd.DataFrame(cpld_rows), use_container_width=True, hide_index=True)
+            else:
+                st.info("未偵測到 CPLD 版本資訊 (fw_list empty)")
+                st.json(root)
+
+        elif cmd_id == "CheckSensorData":
+            # Round 6: Format Sensor Info
+            # Expecting data structure: data[0]['sensor_list']
+            sensor_list = root.get("sensor_list", [])
+            
+            if sensor_list:
+                sensor_rows = []
+                for s in sensor_list:
+                    sensor_rows.append({
+                        "Sensor Name": s.get("name", "N/A"),
+                        "Status": s.get("status", "N/A"),
+                        "Reading": s.get("reading", "N/A"),
+                        "Unit": s.get("unit", ""),
+                        "Lower Threshold": s.get("lower_critical", "N/A"),
+                        "Upper Threshold": s.get("upper_critical", "N/A")
+                    })
+                st.dataframe(pd.DataFrame(sensor_rows), use_container_width=True, hide_index=True)
+            else:
+                st.info("未偵測到感測器讀值 (sensor_list empty)")
+                st.json(root)
         
         elif cmd_id == "GetDmiInfo":
-            c1, c2 = st.columns(2)
-            if "system" in root:
-                sys = root["system"]
-                with c1:
-                    st.markdown("##### System")
-                    st.write(f"**Manufacturer:** {sys.get('manufacturer', 'N/A')}")
-                    st.write(f"**Product:** {sys.get('product', 'N/A')}")
-                    st.write(f"**Serial:** {sys.get('serial_number', 'N/A')}")
+            # ... (Existing DMI logic, kept for reference) ...
+            dmi_summary = []
             
-            if "baseboard" in root and isinstance(root["baseboard"], list):
-                mb = root["baseboard"][0]
-                with c2:
-                    st.markdown("##### Motherboard")
-                    st.write(f"**Product:** {mb.get('product', 'N/A')}")
-                    st.write(f"**Version:** {mb.get('version', 'N/A')}")
-        
+            def get_section(root, key):
+                sec = root.get(key)
+                if isinstance(sec, list) and len(sec) > 0: return sec[0]
+                return sec if isinstance(sec, dict) else {}
+
+            sys = get_section(root, "system")
+            if sys:
+                dmi_summary.append({
+                    "類別": "System",
+                    "製造商 (Manufacturer)": sys.get("manufacturer", "N/A"),
+                    "產品名稱 (Product)": sys.get("product", "N/A"),
+                    "序號 (Serial)": sys.get("serial_number", "N/A"),
+                    "版本 (Version)": sys.get("version", "N/A")
+                })
+            
+            mb = get_section(root, "baseboard")
+            if mb:
+                dmi_summary.append({
+                    "類別": "Baseboard",
+                    "製造商 (Manufacturer)": mb.get("manufacturer", "N/A"),
+                    "產品名稱 (Product)": mb.get("product", "N/A"),
+                    "序號 (Serial)": mb.get("serial_number", "N/A"),
+                    "版本 (Version)": mb.get("version", "N/A")
+                })
+
+            cha = get_section(root, "chassis")
+            if cha:
+                dmi_summary.append({
+                    "類別": "Chassis",
+                    "製造商 (Manufacturer)": cha.get("manufacturer", "N/A"),
+                    "產品名稱 (Product)": "N/A",
+                    "序號 (Serial)": cha.get("serial_number", "N/A"),
+                    "版本 (Version)": cha.get("version", "N/A")
+                })
+
+            if dmi_summary:
+                st.dataframe(pd.DataFrame(dmi_summary), use_container_width=True, hide_index=True)
+            else:
+                st.info("無法解析標準 DMI 結構，顯示原始 JSON:")
+                st.json(root)
+
         elif cmd_id == "GetFanMode":
             mode = get_fuzzy_val(root, ["current_fan_mode", "fan_speed_control_mode", "mode"])
             st.metric("目前風扇策略", mode)
@@ -287,14 +534,12 @@ def render_visualization(cmd_id: str, data: dict):
                 st.write(f"支援模式: {root['fan_mode_support']}")
         
         elif cmd_id == "GetBiosInfo":
-            # 實際結構：board_info 嵌套物件
             board_info = root.get("board_info", {})
             if board_info:
                 ver = board_info.get("bios_version", "N/A")
                 date = board_info.get("bios_build_date", "N/A")
                 board_id = board_info.get("board_id", "N/A")
             else:
-                # Fallback 嘗試從 root 拿
                 ver = get_fuzzy_val(root, ["bios_version", "version"])
                 date = get_fuzzy_val(root, ["release_date", "date", "bios_build_date"])
                 board_id = "N/A"
@@ -308,7 +553,12 @@ def render_visualization(cmd_id: str, data: dict):
                 st.json(root)
 
         else:
-            # 通用顯示：如果是列表或字典，轉為 Dataframe，否則 Json
+            # Check for QueryProductKeyStatus Unknown Command (Round 6)
+            # This block handles result visualization, but the error might be caught in the main block `result.success` check.
+            # However, if it falls through to here (data present but error?), we visualize.
+            # But "Unknown command" typically results in success=False, so handled in the main loop block.
+            
+            # Use universal DataFrame/JSON fallback
             if isinstance(root, dict):
                 st.dataframe(pd.DataFrame([root]), use_container_width=True, hide_index=True)
             else:

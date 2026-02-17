@@ -22,12 +22,48 @@ class SAAResult:
     command_str: str = ""
 
 @lru_cache(maxsize=1)
+def get_project_root() -> Path:
+    """取得專案根目錄"""
+    # src/core/saa_runner.py -> src/core -> src -> ProjectRoot
+    return Path(__file__).parent.parent.parent
+
+def get_tool_path(tool_name: str) -> Optional[Path]:
+    """
+    取得外部工具的絕對路徑 (Portable Detection)
+    搜尋路徑: ProjectRoot/tools/
+    """
+    project_root = get_project_root()
+    base_root = project_root / "tools"  # Generic 'tools' directory
+    
+    # Map friendly name to executable name
+    exe_map = {
+        "saa": "saa.exe",
+        "ipmicfg": "IPMICFG.exe",
+        "smcipmitool": "SMCIPMITool.exe"
+    }
+    
+    target_exe = exe_map.get(tool_name.lower())
+    if not target_exe: return None
+
+    # Recursively search in SAA folder
+    if base_root.exists():
+        found = list(base_root.rglob(target_exe))
+        if found:
+            # Return the first found match
+            return found[0]
+            
+    return None
+
+@lru_cache(maxsize=1)
 def get_saa_path() -> Path:
-    """取得 SAA 執行檔絕對路徑 (Cached)"""
-    # 假設 SAA 位於 Hyper-RMA 的同級目錄 (Anti-Gamer/SAA)
-    project_root = Path(__file__).parent.parent.parent.parent
-    saa_path = project_root / "SAA" / "saa_1.4.0_Win_x86_64" / "saa.exe"
-    return saa_path
+    """取得 SAA 執行檔絕對路徑"""
+    tool_path = get_tool_path("saa")
+    
+    # 如果找不到，回傳一個預期的路徑以便在錯誤訊息中顯示
+    if not tool_path:
+        return get_project_root() / "tools" / "saa.exe"
+        
+    return tool_path
 
 def run_saa(
     ip: str, 

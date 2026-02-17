@@ -39,13 +39,28 @@ def render_diagnosis_ui():
         with st.status("⌛ 系統連線與硬體掃描中... 請稍候", expanded=True) as status:
             try:
                 status.write("📡 正在透過 Redfish 建立安全連線...")
-                # 1. Redfish Inventory
-                cpu_info, mem_info, fw_info = get_redfish_hw_info(target_ip, user, password)
+                
+                # Check Generation
+                is_modern = st.session_state.get("is_modern", True)
+                gen_code = st.session_state.get("target_generation", "Unknown")
+                
+                cpu_info, mem_info, fw_info = [], [], {}
+
+                if is_modern:
+                    # 1. Redfish Inventory (Only for Modern)
+                    cpu_info, mem_info, fw_info = get_redfish_hw_info(target_ip, user, password)
+                else:
+                    status.write(f"🐢 Legacy Generation ({gen_code}): Skipping Redfish Inventory...")
                 
                 status.write("🔍 收集 CPU/Memory/Firmware 清冊...")
                 status.write("⚙️ 執行 SAA 核心診斷指令 (1/3: GetSystemInfo)...")
                 from core.saa_runner import run_saa
-                res_sys = run_saa(target_ip, user, password, "GetSystemInfo", [])  # Redfish
+                
+                sys_args = []
+                if not is_modern:
+                    sys_args = ["no-redfish"]
+                
+                res_sys = run_saa(target_ip, user, password, "GetSystemInfo", sys_args)
                 
                 status.write("⚙️ 執行 SAA 核心診斷指令 (2/3: GetSystemInfo-IPMI)...")
                 res_ipmi = run_saa(target_ip, user, password, "GetSystemInfo", ["no-redfish"]) # IPMI
@@ -54,7 +69,7 @@ def render_diagnosis_ui():
                 res_dmi = run_saa(target_ip, user, password, "GetDmiInfo", ["no-redfish"]) # DMI
                 
                 status.write("📋 擷取系統事件日誌 (SEL)...")
-                res_log = run_saa(target_ip, user, password, "GetEventLog", [])
+                res_log = run_saa(target_ip, user, password, "GetEventLog", ["no-redfish"])
 
                 st.session_state["diagnosis_data"] = {
                     "cpu_info": cpu_info,
@@ -230,6 +245,16 @@ def render_diagnosis_ui():
             if not important_logs.empty:
                 st.dataframe(important_logs, use_container_width=True, hide_index=True)
             else:
-                st.success("目前無重大錯誤記錄")
+                st.success("目前無重大錯誤記錄 (Filtered)")
+            
+            with st.expander("🔍 查看完整日誌 (Raw Logs)"):
+                if not df_err.empty:
+                    st.dataframe(df_err, use_container_width=True, hide_index=True)
+                else:
+                    st.info("無任何日誌記錄")
         else:
-            st.info("無法取得或無事件日誌")
+            st.warning("⚠️ 無法取得事件日誌或日誌為空")
+            if res_log:
+                with st.expander("原始錯誤訊息"):
+                    st.write(res_log.error_message)
+                    st.code(res_log.raw_output)

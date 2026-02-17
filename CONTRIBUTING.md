@@ -99,7 +99,7 @@
 - **Chore**: 建構工具或依賴更新
 
 **範例**:
-- `feat(saa): 新增 BIOS 版本檢查指令`
+- `feat(tools): 新增 BIOS 版本檢查指令`
 - `fix(auth): 修正 BMC 連線逾時問題`
 - `docs(readme): 更新安裝步驟說明`
 

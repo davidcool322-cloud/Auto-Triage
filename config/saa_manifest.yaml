@@ -48,7 +48,7 @@ commands:
     description: "抓取 IPMI SEL，用於分析硬體錯誤紀錄。"
     category: "Health"
     icon: "📋"
-    args: []
+    args: ["no-redfish"]
 
   - id: "CheckSensorData"
     name: "感測器讀值"
@@ -62,7 +62,7 @@ commands:
     description: "檢查 DIMM 是否有 ECC Error 或被隔離 (Mapped out)。"
     category: "Health"
     icon: "🧠"
-    args: ["no-redfish"]
+    args: ["--action", "Enable", "--reboot", "no-redfish"]
 
   - id: "GetPsuInfo"
     name: "電源供應器狀態"
@@ -105,4 +105,26 @@ commands:
     description: "列出目前 BMC 內建立的所有帳號與權限。"
     category: "Control"
     icon: "👤"
+    args: ["no-redfish"]
+
+  # --- 授權管理 (License) ---
+  - id: "ActivateProductKey"
+    name: "啟動產品金鑰"
+    description: "輸入 24 碼序號啟動 SFT-OOB-LIC 或 SFT-DCMS-SINGLE。"
+    category: "License"
+    icon: "🔑"
+    args: ["--product_key", "REQUIRED_INPUT", "no-redfish"]
+
+  - id: "QueryProductKeyStatus"
+    name: "查詢產品金鑰狀態"
+    description: "檢查目前節點的授權狀態 (Active/Inactive)。"
+    category: "License"
+    icon: "🔍"
+    args: ["no-redfish"]
+
+  - id: "DeleteProductKey"
+    name: "刪除產品金鑰"
+    description: "移除目前的授權金鑰 (危險操作)。"
+    category: "License"
+    icon: "🗑️"
     args: ["no-redfish"]

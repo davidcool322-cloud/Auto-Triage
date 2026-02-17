@@ -8,8 +8,9 @@ from playwright.sync_api import sync_playwright, Page
 from typing import Optional, Tuple, Callable
 
 # Configuration
-BASE_URL = os.getenv("RMA_BOT_BASE_URL", "http://rreport-dbs/")
-DIRECT_URL = os.getenv("RMA_BOT_DIRECT_URL", "http://rreport-dbs/RMA_Daily_Report.aspx")
+# Configuration
+BASE_URL = os.getenv("RMA_BOT_BASE_URL", "http://your-internal-report-system/")
+DIRECT_URL = os.getenv("RMA_BOT_DIRECT_URL", "http://your-internal-report-system/Daily_Report.aspx")
 
 # CSS Selectors
 ID_START_DATE = "#MainContent_tb_Non_Buffer_Search_GeneratedDateFrom"
@@ -87,7 +88,8 @@ def _download_and_filter(page: Page, output_dir: str, start: str, end: str) -> O
         model_col = next((col for col in df.columns if "Model" in str(col)), None)
         
         if model_col:
-            target_prefixes = ('X14', 'H14', 'A4', 'M4')
+            # Example: Filter by model prefix (e.g., 'ModelA', 'ModelB')
+            target_prefixes = ('MODEL_A', 'MODEL_B')
             mask = df[model_col].astype(str).str.upper().str.startswith(target_prefixes)
             filtered_df = df[mask]
             

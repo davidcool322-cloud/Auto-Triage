@@ -18,6 +18,7 @@ from workshop.firmware_update_page import render_firmware_update_page
 from diagnosis.diagnosis_ui import render_diagnosis_ui
 from automation.autobot_ui import render_autobot_ui
 from admin.admin_ui import render_admin_console
+from core.generation_utils import detect_generation, is_modern_generation
 
 # --- Navigation State Management ---
 def set_page(page_name):
@@ -62,10 +63,10 @@ def main():
         menu_options = [
             "🏠 首頁",
             "📡 基礎診斷",
-            "🧪 SAA 指令工作坊",
+            "🧪 指令工作坊",
             "🔧 DMI/FRU 更新",
             "📦 韌體更新",
-            "🤖 報表自動化 (AutoBot)"
+            "🤖 報表機器人"
         ]
 
         # 如果管理員已登入，增加管理主控台選項
@@ -121,6 +122,48 @@ def main():
         
         st.divider()
         
+        # 3. 自動執行系統偵測 (世代/型號)
+        # Round 13: Removed manual checkbox, now auto-runs if BMC IP is present
+        if bmc_ip:
+            # 嘗試偵測世代 (如果尚未偵測)
+            if "target_generation" not in st.session_state or st.session_state.get("last_ip") != bmc_ip:
+                try:
+                    # 使用 SAA 快速取得 System Info (不使用 Redfish 以兼容舊版)
+                    from core.saa_runner import run_saa
+                    res = run_saa(bmc_ip, bmc_user, bmc_password, "GetSystemInfo", ["no-redfish"])
+                    
+                    product_model = "Unknown"
+                    if res.success and res.data:
+                         root = res.data.get("data", [{}])[0]
+                         sys_node = root.get("system", [{}])[0] if root.get("system") else {}
+                         product_model = sys_node.get("model", "Unknown")
+                    
+                    gen_code = detect_generation(product_model)
+                    is_modern_gen = is_modern_generation(gen_code)
+                    
+                    st.session_state["target_model"] = product_model
+                    st.session_state["target_generation"] = gen_code
+                    st.session_state["is_modern"] = is_modern_gen
+                    st.session_state["last_ip"] = bmc_ip
+                    
+                except Exception as e:
+                    st.sidebar.error(f"世代偵測失敗: {e}")
+            
+            # 顯示世代標籤
+            gen_code = st.session_state.get("target_generation", "Unknown")
+            is_modern_gen = st.session_state.get("is_modern", False)
+            model = st.session_state.get("target_model", "Unknown")
+            
+            if is_modern_gen:
+                st.sidebar.success(f"🚀 Detected: {model} ({gen_code}) - Modern")
+            elif gen_code != "Unknown":
+                st.sidebar.warning(f"🐢 Detected: {model} ({gen_code}) - Legacy")
+            else:
+                 # Round 12: Clarify "Unknown"
+                 st.sidebar.info(f"❓ Generation: Unknown (Model: {model})")
+
+        st.divider()
+        
         if st.session_state.get("show_admin_login", False) and not st.session_state.get("admin_authenticated", False):
             with st.container(border=True):
                 if render_admin_login():
@@ -148,7 +191,7 @@ def main():
         render_dashboard()
     elif current == "📡 基礎診斷":
         render_diagnosis_ui()
-    elif current == "🧪 SAA 指令工作坊":
+    elif current == "🧪 指令工作坊":
         render_saa_workshop()
     elif current == "🔧 DMI/FRU 更新":
         # 需要 BMC 連線資訊
@@ -164,7 +207,7 @@ def main():
             st.warning("⚠️ 請先在側邊欄設定 BMC 連線資訊")
         else:
             render_firmware_update_page(ip, user, password)
-    elif current == "🤖 報表自動化 (AutoBot)":
+    elif current == "🤖 報表機器人":
         render_autobot_ui()
     elif current == "🔧 管理主控台":
         if st.session_state.get("admin_authenticated", False):
@@ -190,18 +233,18 @@ def render_dashboard():
         
     with col2:
         with st.container(border=True):
-            st.markdown("### 🧪 SAA 工作坊", unsafe_allow_html=True)
+            st.markdown("### 🧪 指令工作坊", unsafe_allow_html=True)
             st.caption("內建 SAA 重要指令集，搭配詳細中文說明與執行範例。")
             if st.button("前往指令庫", key="btn_saa", type="primary", use_container_width=True):
-                set_page("🧪 SAA 指令工作坊")
+                set_page("🧪 指令工作坊")
                 st.rerun()
         
     with col3:
         with st.container(border=True):
-            st.markdown("### 🤖 AutoBot", unsafe_allow_html=True)
+            st.markdown("### 🤖 報表機器人", unsafe_allow_html=True)
             st.caption("自動化報表生成與 X14/H14 專案機型過濾。")
             if st.button("前往報表", key="btn_autobot", type="primary", use_container_width=True):
-                set_page("🤖 報表自動化 (AutoBot)")
+                set_page("🤖 報表機器人")
                 st.rerun()
     
     # 第二排功能
