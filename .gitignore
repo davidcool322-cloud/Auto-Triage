@@ -91,3 +91,6 @@ desktop.ini
 tools/
 saa.exe
 IPMICFG.exe
+
+# Legacy SAA Folder (Force Ignore)
+SAA/
